@@ -4,7 +4,7 @@
 Pure stdlib. Base URL: https://api.aboai.ai/v1 (OpenAI-compatible).
 Key lookup order: $ABOAI_API_KEY -> ~/.aboai/key -> <skill dir>/.env
 """
-import argparse, base64, json, mimetypes, os, sys, time, urllib.error, urllib.request, uuid
+import argparse, base64, json, mimetypes, os, re, sys, time, urllib.error, urllib.request, uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -194,10 +194,40 @@ def cmd_chat(args):
         print(f"[tokens] {json.dumps(u)}", file=sys.stderr)
 
 
+FALLBACK_IMAGE_MODEL = "gpt-image-2.5-flare"
+
+
+def latest_image_model() -> str:
+    """Newest gpt-image-* on the gateway, so new releases are picked up automatically.
+
+    Override with $ABOAI_IMAGE_MODEL or -m. Ranking: highest version number
+    (2.5 > 2), ties broken by name. Falls back to FALLBACK_IMAGE_MODEL.
+    """
+    env = os.environ.get("ABOAI_IMAGE_MODEL")
+    if env:
+        return env
+    try:
+        ids = [m["id"] for m in request("/models", method="GET").get("data", [])]
+    except SystemExit:
+        return FALLBACK_IMAGE_MODEL
+    cands = []
+    for mid in ids:
+        mt = re.match(r"gpt-image-(\d+(?:\.\d+)*)", mid, re.I)
+        if mt:
+            cands.append((tuple(int(x) for x in mt.group(1).split(".")), mid))
+    if not cands:
+        return FALLBACK_IMAGE_MODEL
+    best = max(v for v, _ in cands)
+    chosen = sorted(mid for v, mid in cands if v == best)[0]
+    print(f"[abo] image model: {chosen}", file=sys.stderr)
+    return chosen
+
+
 def cmd_image(args):
+    args.model = args.model or latest_image_model()
     body = {"model": args.model, "prompt": args.prompt}
-    if args.model.startswith("gpt-image"):
-        # gpt-image-2 500s unless size + quality + n are all present
+    if args.model.lower().startswith("gpt-image"):
+        # gpt-image-* 500s unless size + quality + n are all present
         body["size"] = args.size or "1024x1024"
         body["quality"] = args.quality or "high"
         body["n"] = args.n
@@ -211,6 +241,7 @@ def cmd_image(args):
 
 
 def cmd_edit(args):
+    args.model = args.model or latest_image_model()
     fields = [("model", args.model), ("prompt", args.prompt),
               ("size", args.size or "1024x1024"),
               ("quality", args.quality or "high"),
@@ -280,18 +311,18 @@ def main():
 
     p = sub.add_parser("image", help="text-to-image")
     p.add_argument("prompt")
-    p.add_argument("-m", "--model", default="gpt-image-2")
-    p.add_argument("--size", help="gpt-image-2: 1024x1024|1024x1536|1536x1024|auto ; gemini-3-pro-image: 1K|2K|4K")
-    p.add_argument("--quality", choices=["low", "medium", "high"], help="gpt-image-2 only")
+    p.add_argument("-m", "--model", default=None, help="default: newest gpt-image-* on the gateway (currently 2.5 series)")
+    p.add_argument("--size", help="gpt-image-*: WxH e.g. 1024x1024|1536x1024|2048x2048|3840x2160|auto ; gemini-3-pro-image: 1K|2K|4K")
+    p.add_argument("--quality", choices=["low", "medium", "high"], help="gpt-image-* only")
     p.add_argument("-n", type=int, default=1)
     p.add_argument("-o", "--out")
     p.set_defaults(func=cmd_image)
 
-    p = sub.add_parser("edit", help="image editing / composition (gpt-image-2)")
+    p = sub.add_parser("edit", help="image editing / composition (gpt-image-*)")
     p.add_argument("prompt")
     p.add_argument("-i", "--image", action="append", required=True, help="input image; repeat for multi-image")
     p.add_argument("--mask")
-    p.add_argument("-m", "--model", default="gpt-image-2")
+    p.add_argument("-m", "--model", default=None, help="default: newest gpt-image-* on the gateway")
     p.add_argument("--size")
     p.add_argument("--quality", choices=["low", "medium", "high"])
     p.add_argument("-n", type=int, default=1)

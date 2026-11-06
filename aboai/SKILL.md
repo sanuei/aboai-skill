@@ -1,6 +1,6 @@
 ---
 name: aboai
-description: 通过 AboAI 聚合网关调用 gpt-image-2 生图/改图、nano banana (gemini image) 生图、DeepSeek / GPT / Claude / Gemini / GLM / Kimi 文本与视觉对话、TTS 语音合成、文本向量，以及 Seedance 2.0 视频生成（文生视频/图生视频，走独立域名 vipapi.aboai.ai）。用户说「生成一张图」「用 gpt image 2 画」「用 nanobanana 生图」「改这张图」「用 deepseek 跑一下」「换个模型问」「文字转语音」「seedance 生成视频」「abo」时使用。Call AboAI gateway for image generation/editing (gpt-image-2, nano banana), multi-model chat (DeepSeek, GPT, Claude, Gemini, GLM, Kimi), TTS, embeddings, and Seedance 2.0 video generation.
+description: 通过 AboAI 聚合网关调用 gpt-image 2.5 系列（自动选最新）生图/改图、nano banana (gemini image) 生图、DeepSeek / GPT / Claude / Gemini / GLM / Kimi 文本与视觉对话、TTS 语音合成、文本向量，以及 Seedance 2.0 视频生成（文生视频/图生视频，走独立域名 vipapi.aboai.ai）。用户说「生成一张图」「用 gpt image 画」「用 nanobanana 生图」「改这张图」「用 deepseek 跑一下」「换个模型问」「文字转语音」「seedance 生成视频」「abo」时使用。Call AboAI gateway for image generation/editing (gpt-image-2.5 series, always the newest; nano banana), multi-model chat (DeepSeek, GPT, Claude, Gemini, GLM, Kimi), TTS, embeddings, and Seedance 2.0 video generation.
 ---
 
 # AboAI 多模型网关
@@ -17,28 +17,32 @@ Key 读取顺序：`$ABOAI_API_KEY` → `~/.aboai/key` → 本 skill 目录下�
 
 ## 生图 image
 
+**模型策略：永远用网关上最新的 gpt-image 系列。** 目前是 2.5 系列（`gpt-image-2.5-flare`、`gpt-image-2.5-sunburst`，实测两者参数和画幅规则一致）。不传 `-m` 时 `abo.py` 会实时查 `/models`，自动选版本号最高的 `gpt-image-*`（同版本取名字排序第一个），有新模型上线后无需改任何代码。想固定模型：`-m xxx` 或环境变量 `ABOAI_IMAGE_MODEL`。
+
 ```bash
-python3 scripts/abo.py image "描述" -o out.png                       # 默认 gpt-image-2
-python3 scripts/abo.py image "描述" -m gemini-2.5-flash-image -o o.png   # nano banana
+python3 scripts/abo.py image "描述" -o out.png                          # 默认：最新 gpt-image（当前 2.5 系列）
+python3 scripts/abo.py image "描述" -m gpt-image-2.5-sunburst -o o.png   # 指定 2.5 系列另一个
+python3 scripts/abo.py image "描述" --size 3840x2160 -o 4k.png           # 2.5 支持到 4K
+python3 scripts/abo.py image "描述" -m gemini-3.1-flash-image -o o.png   # nano banana（固定 1408×768）
 python3 scripts/abo.py image "描述" -m gemini-3-pro-image --size 2K -o o.png  # nano banana pro
 ```
 
-- `--size`：gpt-image-2 用 `1024x1024`(默认) / `1024x1536` 竖 / `1536x1024` 横 / `auto`；gemini-3-pro-image 用 `1K` / `2K` / `4K`。
-- `--quality low|medium|high`（默认 high，仅 gpt-image-2）。low 出图快、便宜，适合先看构图。
+- `--size`：gpt-image 2.5 任意 `宽x高`，实测通过 `1024x1024`(默认) / `1024x1536` 竖 / `1536x1024` 横 / `2048x2048` / `3840x2160`，`auto`（出 1254×1254）；gemini-3-pro-image 用 `1K` / `2K` / `4K`。
+- `--quality low|medium|high`（默认 high，仅 gpt-image）。low 出图快、便宜，适合先看构图。
 - `-n 2` 出多张，文件名自动加 `_2`。
 - 不指定 `-o` 时输出到当前目录 `image-<时间戳>.png`，脚本把最终路径打到 stdout。
 
-**画幅注意**：gemini-2.5-flash-image 固定 1024×1024，`--size` / 宽高比参数会被网关忽略——要竖图横图请写进 prompt（"vertical 9:16 poster composition"），或改用 gpt-image-2 / gemini-3-pro-image。
+**画幅注意**：gemini 系列忽略 `--size` 像素值和宽高比参数，要竖图横图请写进 prompt（"vertical 9:16 poster composition"），或改用 gpt-image。`gemini-2.5-flash-image` 已从网关下架。
 
-## 改图 edit（仅 gpt-image-2）
+## 改图 edit（仅 gpt-image 系列）
 
 ```bash
-python3 scripts/abo.py edit "把苹果换成青梨，保持背景" -i in.png -o out.png
+python3 scripts/abo.py edit "把苹果换成青梨，保持背景" -i in.png -o out.png        # 默认最新 gpt-image
 python3 scripts/abo.py edit "把这两个产品放在同一张桌上" -i a.jpg -i b.jpg -o out.png   # 多图合成
 python3 scripts/abo.py edit "只替换蒙版区域为蓝天" -i in.png --mask mask.png -o out.png
 ```
 
-nano banana 系列在这个网关上**只能文生图**，`/images/edits` 走它会 500；需要参考图 / 改图一律用 gpt-image-2。
+2.5 系列的 flare / sunburst 改图均实测可用。nano banana 系列在这个网关上**只能文生图**，`/images/edits` 走它会 500；需要参考图 / 改图一律用 gpt-image。
 
 ## 对话 chat
 
@@ -91,6 +95,8 @@ curl -s https://vipapi.aboai.ai/v1/video/generations/<task_id> -H "Authorization
 
 ## 其他
 
+**网关有新模型时（尤其是图像模型），先跑 `models` 看一眼，优先用最新的。**
+
 ```bash
 python3 scripts/abo.py models                                  # 查当前可用模型（会变，以此为准）
 python3 scripts/abo.py raw /chat/completions body.json         # 直接打任意端点
@@ -100,10 +106,10 @@ python3 scripts/abo.py raw /chat/completions body.json         # 直接打任意
 
 | 需求 | 用 |
 |---|---|
-| 高质量生图、要控画幅 | `gpt-image-2` |
-| 改图 / 多图合成 / 蒙版 | `gpt-image-2 edit` |
-| 快速便宜生图 | `gemini-2.5-flash-image` (nano banana) |
-| 高分辨率生图 (2K/4K) | `gemini-3-pro-image` (nano banana pro) |
+| 高质量生图、要控画幅 | 最新 `gpt-image-*`（当前 `gpt-image-2.5-flare` / `-sunburst`）|
+| 改图 / 多图合成 / 蒙版 | 最新 `gpt-image-*` 的 `edit` |
+| 快速便宜生图 | `gemini-3.1-flash-image` (nano banana) |
+| 高分辨率生图 (2K/4K) | 最新 `gpt-image-*`（`--size 3840x2160`）或 `gemini-3-pro-image` |
 | 中文推理、性价比 | `deepseek-v4-pro` / `deepseek-v4-flash-0731` |
 | 长文写作 / 代码 | `Claude-Opus-5` / `Claude-Sonnet-5` |
 | 通用 + 视觉 | `GPT-5.5` / `GPT-5.2` / `gemini-3.1-pro-preview` |
@@ -113,5 +119,5 @@ python3 scripts/abo.py raw /chat/completions body.json         # 直接打任意
 ## 故障处理
 
 - `Internal server error` (HTTP 500)：网关偶发抖动，脚本已自动重试 4 次（退避 2/4/6 秒）。仍失败多为参数不被上游接受——换模型或去掉可选参数再试。
-- gpt-image-2 必须同时带 `size` + `quality` + `n`，缺一个就 500；脚本已自动补齐，手写 curl 时要注意。
+- gpt-image-*（含 2.5 系列）必须同时带 `size` + `quality` + `n`，缺一个就 500；脚本已自动补齐，手写 curl 时要注意。
 - `Model not found: xxx`：模型 ID 大小写敏感（`Claude-Opus-5` 大写、`deepseek-v4-pro` 小写），先跑 `models` 确认。
